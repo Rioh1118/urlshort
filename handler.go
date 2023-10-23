@@ -3,7 +3,7 @@ package urlshort
 import (
 	"net/http"
 
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // MapHandler will return an http.HandlerFunc (which also
@@ -15,11 +15,10 @@ import (
 func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
 	result := http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.String()
+			path := r.URL.Path
 			if url, ok := pathsToUrls[path]; ok {
-				w.Header().Set("Content-Type", "text/html")
-				w.Header().Set("Location", url)
-				w.WriteHeader(http.StatusMovedPermanently)
+				http.Redirect(w, r, url, http.StatusFound)
+				return
 			} else {
 				fallback.ServeHTTP(w, r)
 			}
@@ -43,23 +42,23 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 //
 // See MapHandler to create a similar http.HandlerFunc via
 // a mapping of paths to urls.
-type YAMLPathURL struct {
-	Path string `yaml:"path"`
-	URL  string `yaml:"url"`
-}
 
-func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
-	var pathURLs []YAMLPathURL
-
-	err := yaml.Unmarshal(yml, &pathURLs)
+func YAMLHandler(yamlBytes []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	var pathUrls []pathUrl
+	err := yaml.Unmarshal(yamlBytes, &pathUrls)
 	if err != nil {
 		return nil, err
 	}
 
-	pathToURLs := make(map[string]string)
-	for _, pu := range pathURLs {
-		pathToURLs[pu.Path] = pu.URL
+	pathsToUrls := make(map[string]string)
+	for _, pu := range pathUrls {
+		pathsToUrls[pu.Path] = pu.URL
 	}
 
-	return MapHandler(pathToURLs, fallback), nil
+	return MapHandler(pathsToUrls, fallback), nil
+}
+
+type pathUrl struct {
+	Path string `yaml:"path"`
+	URL  string `yaml:"url"`
 }
